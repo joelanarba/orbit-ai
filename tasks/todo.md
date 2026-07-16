@@ -4,22 +4,22 @@ Mirrors the approved plan (`orbit_ai_build_plan_811ee433`). Checked = done and v
 
 ## Phase 1 — Core loop
 
-- [ ] Create `tasks/todo.md` + `tasks/lessons.md` stub
-- [ ] Scaffold SAM project (template.yaml, package.json, .gitignore, src/, scripts/, events/)
-- [ ] `git init` + initial commits
-- [ ] Implement `src/sources/tasks.mjs` — DynamoDB query via `status-deadline-index` GSI
-- [ ] Implement `src/sources/github.mjs` — recent commits, open issues, >14d stale flags
-- [ ] Implement `src/sources/calendar.mjs` + `src/sources/gmail.mjs` — phase-2 stubs (return null)
-- [ ] Implement `src/reasoning/prompt.mjs` + `src/reasoning/briefing.mjs` — `getPriorityBriefing(context)`, gpt-4o-mini, 5-section markdown contract
-- [ ] Implement `src/delivery/email.mjs` — SES send (text + minimal HTML)
-- [ ] Implement `src/delivery/archive.mjs` — S3 `reports/YYYY-MM-DD.md` + context JSON + read previous briefing top-3
-- [ ] Wire `src/handler.mjs` orchestrator (gather → reason → deliver → archive)
-- [ ] Write `scripts/test-openai.mjs` (local smoke test against `.env`)
-- [ ] Write `scripts/seed-tasks.mjs` (starter tasks from Joel's commitments)
-- [ ] Write `scripts/invoke-remote.ps1` (manual Lambda invoke)
-- [ ] `sam validate` + `node --check` all modules
-- [ ] `sam build` + `sam deploy` — stack `orbit-ai` (DynamoDB `orbit-tasks` + GSI, S3 reports bucket, Lambda + least-privilege IAM)
-- [ ] Run `scripts/seed-tasks.mjs` against deployed table and verify items exist
+- [x] Create `tasks/todo.md` + `tasks/lessons.md` stub
+- [x] Scaffold SAM project (template.yaml, package.json, .gitignore, src/, scripts/, events/)
+- [x] `git init` + initial commits
+- [x] Implement `src/sources/tasks.mjs` — DynamoDB query via `status-deadline-index` GSI
+- [x] Implement `src/sources/github.mjs` — recent commits, open issues, >14d stale flags
+- [x] Implement `src/sources/calendar.mjs` + `src/sources/gmail.mjs` — phase-2 stubs (return null)
+- [x] Implement `src/reasoning/prompt.mjs` + `src/reasoning/briefing.mjs` — `getPriorityBriefing(context)`, gpt-4o-mini, 5-section markdown contract
+- [x] Implement `src/delivery/email.mjs` — SES send (text + minimal HTML)
+- [x] Implement `src/delivery/archive.mjs` — S3 `reports/YYYY-MM-DD.md` + context JSON + read previous briefing top-3
+- [x] Wire `src/handler.mjs` orchestrator (gather → reason → deliver → archive)
+- [x] Write `scripts/test-openai.mjs` (local smoke test against `.env`) — *code ready; actual OpenAI call blocked on key*
+- [x] Write `scripts/seed-tasks.mjs` (starter tasks from Joel's commitments)
+- [x] Write `scripts/invoke-remote.ps1` (manual Lambda invoke)
+- [x] `sam validate` + `node --check` all modules — all 12 modules pass, template valid
+- [x] `sam build` + `sam deploy` — stack `orbit-ai` deployed to us-east-1 (Lambda `orbit-briefing`, table `orbit-tasks` + GSI, bucket `orbit-ai-reportsbucket-1ewyhjz5rbop`)
+- [x] Run `scripts/seed-tasks.mjs` against deployed table and verify items exist — 10 items seeded; scan count = 10; GSI query (`status = todo`) = 8
 
 ## BLOCKED ON JOEL — do these tonight
 
@@ -87,4 +87,11 @@ aws ssm put-parameter --name /orbit/briefing-email --type String --value "you@ex
 
 ## Review log
 
-_(phase reviews get appended here)_
+**2026-07-16 — Scaffold + deploy phase complete.** Full core-loop code implemented and
+deployed (stack `orbit-ai`, us-east-1). Verified: `sam validate` clean, all modules pass
+`node --check`, table seeded with 10 tasks (scan = 10, GSI query works), and a manual
+Lambda invoke confirmed the pipeline runs correctly through the gather phase
+("Gathered context: 10 tasks, github=off, previousBriefing=none" in CloudWatch) before
+failing exactly where expected — the missing OpenAI key. Remaining work is blocked on
+Joel's three inputs above; after those, do the manual end-to-end run, then add the
+EventBridge schedule.
