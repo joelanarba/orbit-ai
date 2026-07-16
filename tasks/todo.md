@@ -139,7 +139,7 @@ the scheduler execution role, then uncomment and redeploy.
       `emailHighlights` (no new UI chrome)
 - [x] Add one-time `scripts/google-oauth-setup.mjs`; it opens consent and writes the
       refresh token directly to SSM without printing it
-- [ ] Deploy Phase 2 SAM changes and verify the no-credentials soft-fail path
+- [x] Deploy Phase 2 SAM changes and verify the no-credentials soft-fail path
 - [ ] Complete Google OAuth setup below, then invoke a real Google-backed briefing
 
 ### BLOCKED ON JOEL — one-time Google Cloud OAuth setup
@@ -244,3 +244,12 @@ dashboard deploy on the same stack (settled at UPDATE_COMPLETE), then `sam build
 timezone `Africa/Accra`, target `arn:aws:lambda:us-east-1:…:function:orbit-briefing`.
 Core loop is now fully autonomous. Last remaining Phase 1 item: capture tomorrow's 6:00 AM
 Accra unattended run (CloudWatch timestamp + email screenshot) as article evidence.
+
+**2026-07-16 — Phase 2 Google integrations deployed; OAuth pending.** Calendar and Gmail
+now use a shared cached OAuth refresh-token flow backed by `/orbit/google-oauth`, feed
+structured signals into the unchanged five-section briefing prompt, and remain optional.
+Tests passed (6/6), SAM validation/build/deploy passed, and `orbit-ai` returned
+`UPDATE_COMPLETE`. A real no-OAuth Lambda run returned 200, archived the report/context,
+and sent email; its gather log showed `calendar=off, gmail=off`, and archived context
+contained both as null. Lambda timeout is now 180 seconds. Google-backed verification is
+blocked only on Joel completing the one-time consent checklist above.
