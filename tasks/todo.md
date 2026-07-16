@@ -9,21 +9,26 @@ Mirrors the approved plan (`orbit_ai_build_plan_811ee433`). Checked = done and v
 - [x] `git init` + initial commits
 - [x] Implement `src/sources/tasks.mjs` — DynamoDB query via `status-deadline-index` GSI
 - [x] Implement `src/sources/github.mjs` — recent commits, open issues, >14d stale flags
+- [x] GitHub auto-discovery — PAT → `GET /user/repos?type=owner` (paginate, skip forks/archived); `GITHUB_REPOS` optional override only
+- [x] Enrich GitHub source — open PRs (count + titles), recent Actions run conclusions, lastPushDate; concurrency cap; prompt aware of CI/PRs/stale
 - [x] Implement `src/sources/calendar.mjs` + `src/sources/gmail.mjs` — phase-2 stubs (return null)
 - [x] Implement `src/reasoning/prompt.mjs` + `src/reasoning/briefing.mjs` — `getPriorityBriefing(context)`, gpt-4o-mini, 5-section markdown contract
 - [x] Implement `src/delivery/email.mjs` — SES send (text + minimal HTML)
 - [x] Implement `src/delivery/archive.mjs` — S3 `reports/YYYY-MM-DD.md` + context JSON + read previous briefing top-3
 - [x] Wire `src/handler.mjs` orchestrator (gather → reason → deliver → archive)
-- [x] Write `scripts/test-openai.mjs` (local smoke test against `.env`) — *code ready; actual OpenAI call blocked on key*
+- [x] Write `scripts/test-openai.mjs` (local smoke test against `.env`) — **PASSED 2026-07-16**: gpt-4o-mini generated a full 5-section briefing in ~5.3s
 - [x] Write `scripts/seed-tasks.mjs` (starter tasks from Joel's commitments)
 - [x] Write `scripts/invoke-remote.ps1` (manual Lambda invoke)
 - [x] `sam validate` + `node --check` all modules — all 12 modules pass, template valid
 - [x] `sam build` + `sam deploy` — stack `orbit-ai` deployed to us-east-1 (Lambda `orbit-briefing`, table `orbit-tasks` + GSI, bucket `orbit-ai-reportsbucket-1ewyhjz5rbop`)
 - [x] Run `scripts/seed-tasks.mjs` against deployed table and verify items exist — 10 items seeded; scan count = 10; GSI query (`status = todo`) = 8
 
-## BLOCKED ON JOEL — do these tonight
+## BLOCKED ON JOEL — CLEARED 2026-07-16
 
-Nothing below can be done by the agent. Exact commands included.
+All three done: `.env` populated + keys pushed to SSM (`/orbit/openai-api-key`,
+`/orbit/github-token` SecureString; `/orbit/briefing-email` String — `/orbit/github-repos`
+skipped, auto-discovery in use), and SES identity `anarbajoel@gmail.com` verified
+(status: Success). Original instructions kept below for reference.
 
 ### 1. OpenAI API key (needed for smoke test + Lambda reasoning)
 
@@ -42,21 +47,32 @@ Create a key at https://platform.openai.com/api-keys (confirm billing/credits ac
   aws ssm put-parameter --name /orbit/openai-api-key --type SecureString --value "sk-REPLACE_ME" --overwrite
   ```
 
-### 2. GitHub PAT + repo list (needed for the GitHub source)
+### 2. GitHub PAT (needed for the GitHub source)
 
-Create a fine-grained PAT at https://github.com/settings/personal-access-tokens — read-only **Contents + Metadata + Issues** on the Kairo Labs repos/org. Then:
+Create a fine-grained PAT at https://github.com/settings/personal-access-tokens for **your user account** on all personal repositories (or “All repositories”). Grant these **read-only** repository permissions:
+
+| Permission | Access |
+|---|---|
+| Metadata | Read |
+| Contents | Read |
+| Issues | Read |
+| Pull requests | Read |
+| Actions | Read |
+
+Orbit auto-discovers every owned non-fork, non-archived repo via `GET /user/repos`, then per repo pulls recent commits, open issues, open PRs, recent Actions runs, and push/stale signals. Then:
 
 ```powershell
 aws ssm put-parameter --name /orbit/github-token --type SecureString --value "github_pat_REPLACE_ME" --overwrite
 ```
 
-Decide which repos to watch (comma-separated `owner/repo`) and set them:
+That is the only GitHub SSM param required. `/orbit/github-repos` is an **optional override** (comma-separated `owner/repo`) if you ever want to pin a subset instead of scanning everything:
 
 ```powershell
-aws ssm put-parameter --name /orbit/github-repos --type String --value "kairo-labs/repo-one,kairo-labs/repo-two" --overwrite
+# Optional — skip this unless you want a fixed list
+aws ssm put-parameter --name /orbit/github-repos --type String --value "owner/repo-one,owner/repo-two" --overwrite
 ```
 
-(For local scripts, the same values can go in `.env` as `GITHUB_TOKEN` and `GITHUB_REPOS`.)
+(For local scripts: `GITHUB_TOKEN` required in `.env`; `GITHUB_REPOS` / `GITHUB_USER` optional.)
 
 ### 3. SES identity verification (needed before any email can send)
 
@@ -76,7 +92,7 @@ aws ssm put-parameter --name /orbit/briefing-email --type String --value "you@ex
 
 ## Phase 1 — after blockers cleared
 
-- [ ] Manual end-to-end Lambda invoke (`scripts/invoke-remote.ps1`) — verify email received + S3 report written
+- [x] Manual end-to-end Lambda invoke (`scripts/invoke-remote.ps1`) — verified 2026-07-16: gather (10 tasks, 116 repos) → reason → archive (`reports/2026-07-16.md` + context JSON in S3) → deliver (SES message id `0100019f6ccd3731-…`, `emailed: true`)
 - [ ] Add EventBridge Scheduler (6 AM `Africa/Accra`, SAM `ScheduleV2`) — **only after** verified manual run
 - [ ] Capture first unattended run: CloudWatch log timestamp + email screenshot (article evidence)
 
@@ -95,3 +111,23 @@ Lambda invoke confirmed the pipeline runs correctly through the gather phase
 failing exactly where expected — the missing OpenAI key. Remaining work is blocked on
 Joel's three inputs above; after those, do the manual end-to-end run, then add the
 EventBridge schedule.
+
+**2026-07-16 — GitHub auto-discovery.** `github.mjs` now lists all owned personal repos
+via the PAT (`GET /user/repos?type=owner`, skip forks/archived) when `GITHUB_REPOS` /
+`/orbit/github-repos` is unset. Joel only needs `/orbit/github-token` for GitHub.
+EventBridge schedule still OFF.
+
+**2026-07-16 — Blockers cleared + first end-to-end run.** Joel supplied `.env` (OpenAI key,
+GitHub PAT, briefing email) and added IAM policy `orbit-ssm-ses` to `builderos-admin`.
+Local smoke test passed (~5.3s). Secrets pushed to SSM, SES identity verified (Joel clicked
+the link within a minute). Manual Lambda invoke succeeded end-to-end: 10 tasks + 116 GitHub
+repos gathered, briefing reasoned, report archived to
+`s3://orbit-ai-reportsbucket-1ewyhjz5rbop/reports/2026-07-16.md`, email delivered
+(SES message id `0100019f6ccd3731-ec66397d-…`). Run took ~60s / 161 MB. Next: EventBridge
+schedule, then capture the first unattended run for the article.
+
+**2026-07-16 — GitHub enrichment.** Per-repo snapshot now includes open PR count/titles,
+recent Actions conclusions (`failingCi`), and `lastPushDate` from discovery. Repo checks
+run with concurrency 5; PR/Actions endpoint failures soft-fail. Fine-grained PAT needs
+Metadata + Contents + Issues + Pull requests + Actions (all Read). Prompt feeds these
+into the existing 5-section briefing. EventBridge still OFF.

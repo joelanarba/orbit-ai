@@ -10,6 +10,7 @@ Core loop: **EventBridge Scheduler → Lambda → (DynamoDB tasks + GitHub activ
 - DynamoDB `orbit-tasks` (GSI `status-deadline-index`), S3 report archive, SES delivery
 - OpenAI `gpt-4o-mini` behind a single `getPriorityBriefing(context)` function (provider-swappable)
 - Secrets in SSM Parameter Store SecureStrings (`/orbit/*`), never in the repo
+- GitHub fine-grained PAT (read-only): **Metadata, Contents, Issues, Pull requests, Actions** — auto-discovers owned personal repos and feeds commits, open issues/PRs, recent CI runs, and stale flags into the briefing
 
 ## Layout
 

@@ -32,11 +32,14 @@ async function resolve(envKey, paramName, { decrypt = false } = {}) {
 export async function getConfig() {
   if (cachedConfig) return cachedConfig;
 
-  const [openaiApiKey, githubToken, githubRepos, briefingEmail] =
+  const [openaiApiKey, githubToken, githubRepos, githubUser, briefingEmail] =
     await Promise.all([
       resolve("OPENAI_API_KEY", "openai-api-key", { decrypt: true }),
       resolve("GITHUB_TOKEN", "github-token", { decrypt: true }),
+      // Optional override — when empty, github.mjs discovers owned repos via the PAT.
       resolve("GITHUB_REPOS", "github-repos"),
+      // Optional; usually unnecessary — GET /user/repos uses the token's identity.
+      resolve("GITHUB_USER", "github-user"),
       resolve("BRIEFING_EMAIL", "briefing-email"),
     ]);
 
@@ -47,6 +50,7 @@ export async function getConfig() {
       .split(",")
       .map((r) => r.trim())
       .filter(Boolean),
+    githubUser: githubUser || null,
     briefingEmail,
     tasksTable: process.env.TASKS_TABLE ?? "orbit-tasks",
     reportsBucket: process.env.REPORTS_BUCKET ?? null,

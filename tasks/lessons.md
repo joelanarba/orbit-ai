@@ -3,3 +3,7 @@
 Patterns learned from corrections. Review at the start of each session.
 
 - (Carried over from BuilderOS) Bedrock token quotas can wall you mid-project — keep the reasoning provider behind a single function (`getPriorityBriefing`) so it's swappable.
+- Prefer authenticated auto-discovery (`GET /user/repos?type=owner`) over a manual `GITHUB_REPOS` list when the user has no org and just wants all personal repos watched. Keep an explicit list only as an optional override.
+- When enriching GitHub for briefings, prefer cheap list-payload fields (`pushed_at`) plus capped recent endpoints (commits/issues/PRs/Actions `per_page≤5`) and soft-fail optional endpoints — never full trees or unbounded history. Cap repo parallelism for Lambda timeouts.
+- A `.env` open in the editor can look populated while the file on disk is still empty (unsaved buffer). Before declaring credentials "missing", check the file size on disk — and before running anything that reads `.env`, confirm it's saved.
+- Admin-ish IAM users may still lack `ssm:PutParameter`/`ses:*` — verify with a cheap read call (`aws ssm describe-parameters --max-items 1`) before a long setup chain, so the failure surfaces at step 1 rather than mid-pipeline.

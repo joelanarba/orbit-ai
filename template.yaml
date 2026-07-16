@@ -70,10 +70,14 @@ Resources:
               Action:
                 - ssm:GetParameter
               Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/orbit/*
-
-  # EventBridge Scheduler is intentionally NOT defined yet.
-  # Per plan, it is added last — only after a verified manual end-to-end run
-  # (blocked on OpenAI key, GitHub PAT, and SES verification).
+      Events:
+        DailyBriefing:
+          Type: ScheduleV2
+          Properties:
+            Name: orbit-daily-briefing
+            Description: Fire the Orbit briefing every day at 6:00 AM Accra time
+            ScheduleExpression: cron(0 6 * * ? *)
+            ScheduleExpressionTimezone: Africa/Accra
 
 Outputs:
   FunctionName:
