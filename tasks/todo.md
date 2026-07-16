@@ -101,6 +101,31 @@ aws ssm put-parameter --name /orbit/briefing-email --type String --value "you@ex
 - [ ] Capture first unattended run — the remaining proof step: tomorrow's 6 AM run, CloudWatch
   log timestamp + email screenshot (article evidence)
 
+## Frontend — Orbit dashboard (web/)
+
+- [x] Dashboard API Lambda `src/api/handler.mjs` (`orbit-dashboard-api`, Function URL):
+      tasks CRUD (DynamoDB), reports list/fetch (S3 + context-JSON signal summary),
+      run status (last/next run), `POST /run` async-invokes `orbit-briefing`
+- [x] Auth: `x-orbit-token` header checked against SSM SecureString `/orbit/dashboard-token`
+      (generated 2026-07-16, never printed; retrieve with
+      `aws ssm get-parameter --name /orbit/dashboard-token --with-decryption`)
+- [x] `WebBucket` S3 static website hosting + public-read policy in template
+- [ ] `sam deploy` with API + web bucket — verify Function URL responds
+- [x] `web/` Vite + React app: token gate, Briefing view (markdown report + repo
+      signals + history), Tasks view (grouped list, add/edit/complete/delete),
+      run status + Run now in the top bar
+- [ ] `npm run build` + sync `web/dist` to WebBucket — verify site serves
+- [ ] Exercise deployed API with real calls (tasks list, latest report, status)
+
+### Blocker discovered 2026-07-16 (needs Joel)
+
+`builderos-admin` lacks EventBridge Scheduler permissions, so the ScheduleV2 event
+fails stack deploys (`scheduler:GetSchedule` AccessDenied → full rollback). The
+schedule is commented out in `template.yaml` for now. To re-enable, attach a policy
+with `scheduler:CreateSchedule/GetSchedule/UpdateSchedule/DeleteSchedule` (resource
+`arn:aws:scheduler:*:*:schedule/default/orbit-*`) plus `iam:CreateRole/PassRole` for
+the scheduler execution role, then uncomment and redeploy.
+
 ## Phase 2 (later)
 
 - [ ] Google Calendar source (OAuth)
