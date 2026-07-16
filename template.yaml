@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Orbit AI — always-on personal agent. Scheduled Lambda gathers tasks (DynamoDB),
+  GitHub activity, reasons with OpenAI, emails a briefing (SES), archives to S3.
+
+Globals:
+  Function:
+    Timeout: 120
+    MemorySize: 512
+
+Resources:
+  TasksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: orbit-tasks
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: deadline
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: status-deadline-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: deadline
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  ReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  OrbitFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: orbit-briefing
+      Runtime: nodejs22.x
+      Handler: src/handler.handler
+      CodeUri: .
+      Description: Orbit AI orchestrator - gather, reason, deliver, archive
+      Environment:
+        Variables:
+          TASKS_TABLE: !Ref TasksTable
+          REPORTS_BUCKET: !Ref ReportsBucket
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref TasksTable
+        - S3CrudPolicy:
+            BucketName: !Ref ReportsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/orbit/*
+
+  # EventBridge Scheduler is intentionally NOT defined yet.
+  # Per plan, it is added last — only after a verified manual end-to-end run
+  # (blocked on OpenAI key, GitHub PAT, and SES verification).
+
+Outputs:
+  FunctionName:
+    Description: Orbit orchestrator Lambda name
+    Value: !Ref OrbitFunction
+  FunctionArn:
+    Description: Orbit orchestrator Lambda ARN
+    Value: !GetAtt OrbitFunction.Arn
+  TasksTableName:
+    Description: DynamoDB tasks table
+    Value: !Ref TasksTable
+  ReportsBucketName:
+    Description: S3 bucket for archived briefings
+    Value: !Ref ReportsBucket

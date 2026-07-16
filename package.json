@@ -1,0 +1,22 @@
+{
+  "name": "orbit-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Orbit AI — always-on personal agent: scheduled briefings from tasks, GitHub, calendar, and email",
+  "scripts": {
+    "test:openai": "node scripts/test-openai.mjs",
+    "seed": "node scripts/seed-tasks.mjs"
+  },
+  "dependencies": {
+    "openai": "^5.10.1"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/client-ses": "^3.600.0",
+    "@aws-sdk/client-ssm": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "ulid": "^2.3.0"
+  }
+}
