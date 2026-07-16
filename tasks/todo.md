@@ -140,22 +140,30 @@ the scheduler execution role, then uncomment and redeploy.
 - [x] Add one-time `scripts/google-oauth-setup.mjs`; it opens consent and writes the
       refresh token directly to SSM without printing it
 - [x] Deploy Phase 2 SAM changes and verify the no-credentials soft-fail path
+- [x] Create dedicated GCP project `orbit-ai-anarbajoel` and enable Service Usage,
+      Cloud Resource Manager, Google Calendar, and Gmail APIs
 - [ ] Complete Google OAuth setup below, then invoke a real Google-backed briefing
 
-### BLOCKED ON JOEL — one-time Google Cloud OAuth setup
+### BLOCKED ON JOEL — Google Auth Platform console step
 
-1. Open https://console.cloud.google.com/ and create or select a project for Orbit.
-2. Open **APIs & Services → Library**. Enable both **Google Calendar API** and
-   **Gmail API**.
-3. Open **Google Auth Platform** (or **APIs & Services → OAuth consent screen**):
+The automatable setup was completed 2026-07-16: authenticated account
+`anarbajoel@gmail.com`, active project `orbit-ai-anarbajoel`, and required APIs enabled.
+Google does not expose public tooling for creating the required External/Testing consent
+configuration and Desktop OAuth client; the `gcloud iap oauth-*` commands create IAP
+credentials and are not interchangeable with Google API Desktop credentials.
+
+1. Open https://console.cloud.google.com/auth/overview?project=orbit-ai-anarbajoel.
+2. Configure **Google Auth Platform**:
    - Choose **External** audience.
+   - Set app name to **Orbit AI**.
+   - Set support/developer email to `anarbajoel@gmail.com`.
    - Complete the required app/contact fields.
    - Keep publishing status **Testing**.
    - Add `anarbajoel@gmail.com` under **Audience → Test users**.
    - Add these read-only scopes under **Data Access**:
      - `https://www.googleapis.com/auth/calendar.readonly`
      - `https://www.googleapis.com/auth/gmail.readonly`
-4. Open **Clients → Create client → Desktop app**. Download or copy its client ID and
+3. Open **Clients → Create client → Desktop app**. Download or copy its client ID and
    client secret. Save them only in the gitignored local `.env`:
 
    ```powershell
@@ -163,7 +171,7 @@ the scheduler execution role, then uncomment and redeploy.
    GOOGLE_CLIENT_SECRET=REPLACE_WITH_DESKTOP_CLIENT_SECRET
    ```
 
-5. From `c:\dev\Projects\orbit ai`, with the AWS CLI signed in as the same account that
+4. From `c:\dev\Projects\orbit ai`, with the AWS CLI signed in as the same account that
    owns stack `orbit-ai`, run:
 
    ```powershell
@@ -175,13 +183,13 @@ the scheduler execution role, then uncomment and redeploy.
    callback and writes one SecureString, `/orbit/google-oauth`, in `us-east-1`.
    It does not print the client secret or refresh token.
 
-6. Confirm only that the parameter exists (do not decrypt or print it):
+5. Confirm only that the parameter exists (do not decrypt or print it):
 
    ```powershell
    aws ssm get-parameter --name /orbit/google-oauth --region us-east-1 --query "Parameter.Name" --output text
    ```
 
-7. Invoke Orbit and confirm the logs show non-zero Google signal counts:
+6. Invoke Orbit and confirm the logs show non-zero Google signal counts:
 
    ```powershell
    .\scripts\invoke-remote.ps1
