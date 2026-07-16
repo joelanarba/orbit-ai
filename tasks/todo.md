@@ -93,13 +93,11 @@ aws ssm put-parameter --name /orbit/briefing-email --type String --value "you@ex
 ## Phase 1 — after blockers cleared
 
 - [x] Manual end-to-end Lambda invoke (`scripts/invoke-remote.ps1`) — verified 2026-07-16: gather (10 tasks, 116 repos) → reason → archive (`reports/2026-07-16.md` + context JSON in S3) → deliver (SES message id `0100019f6ccd3731-…`, `emailed: true`)
-- [ ] Add EventBridge Scheduler (6 AM `Africa/Accra`, SAM `ScheduleV2`) — **template updated
-  2026-07-16** (`orbit-daily-briefing`, `cron(0 6 * * ? *)`, tz `Africa/Accra`), but the deploy
-  **rolled back: `builderos-admin` lacks EventBridge Scheduler IAM permissions**
-  (`scheduler:GetSchedule` denied). **BLOCKED ON JOEL** — attach the policy in
-  `scripts/iam-orbit-scheduler-policy.json` to `builderos-admin` via the IAM console (same as
-  `orbit-ssm-ses` before), then re-run `sam deploy --stack-name orbit-ai --region us-east-1
-  --capabilities CAPABILITY_IAM --resolve-s3 --no-confirm-changeset`
+- [x] Add EventBridge Scheduler (6 AM `Africa/Accra`, SAM `ScheduleV2`) — **DEPLOYED
+  2026-07-16** after Joel attached `orbit-scheduler` to `builderos-admin`. Verified live via
+  `aws scheduler get-schedule`: `orbit-daily-briefing`, state ENABLED, `cron(0 6 * * ? *)`,
+  tz `Africa/Accra`, target `orbit-briefing` Lambda. Remaining proof = tomorrow's 6 AM
+  unattended run screenshots
 - [ ] Capture first unattended run — the remaining proof step: tomorrow's 6 AM run, CloudWatch
   log timestamp + email screenshot (article evidence)
 
@@ -152,3 +150,13 @@ PassRole to scheduler.amazonaws.com) in the IAM console, then redeploy and verif
 `aws scheduler get-schedule --name orbit-daily-briefing`. After that, the only remaining
 proof step is capturing tomorrow's 6 AM unattended run (CloudWatch log timestamp + email
 screenshot for the article).
+
+**2026-07-16 — EventBridge schedule deployed and verified.** Joel attached the
+`orbit-scheduler` policy to `builderos-admin`; `aws scheduler list-schedules` now succeeds.
+Uncommented the `DailyBriefing` ScheduleV2 event in `template.yaml`, waited out a concurrent
+dashboard deploy on the same stack (settled at UPDATE_COMPLETE), then `sam build` +
+`sam deploy` succeeded — CloudFormation created the schedule + its invoke role. Verified via
+`aws scheduler get-schedule`: `orbit-daily-briefing` is **ENABLED**, `cron(0 6 * * ? *)`,
+timezone `Africa/Accra`, target `arn:aws:lambda:us-east-1:…:function:orbit-briefing`.
+Core loop is now fully autonomous. Last remaining Phase 1 item: capture tomorrow's 6:00 AM
+Accra unattended run (CloudWatch timestamp + email screenshot) as article evidence.
