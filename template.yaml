@@ -79,6 +79,70 @@ Resources:
             ScheduleExpression: cron(0 6 * * ? *)
             ScheduleExpressionTimezone: Africa/Accra
 
+  DashboardApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: orbit-dashboard-api
+      Runtime: nodejs22.x
+      Handler: src/api/handler.handler
+      CodeUri: .
+      Timeout: 30
+      Description: Orbit dashboard API - tasks CRUD, reports, run status, manual trigger
+      Environment:
+        Variables:
+          TASKS_TABLE: !Ref TasksTable
+          REPORTS_BUCKET: !Ref ReportsBucket
+          BRIEFING_FUNCTION: !Ref OrbitFunction
+      # Auth happens inside the handler: x-orbit-token checked against
+      # SSM /orbit/dashboard-token. AuthType NONE just skips IAM SigV4.
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - "*"
+          AllowMethods:
+            - "*"
+          AllowHeaders:
+            - content-type
+            - x-orbit-token
+          MaxAge: 86400
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TasksTable
+        - S3ReadPolicy:
+            BucketName: !Ref ReportsBucket
+        - LambdaInvokePolicy:
+            FunctionName: !Ref OrbitFunction
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/orbit/*
+
+  WebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub ${WebBucket.Arn}/*
+
 Outputs:
   FunctionName:
     Description: Orbit orchestrator Lambda name
@@ -92,3 +156,12 @@ Outputs:
   ReportsBucketName:
     Description: S3 bucket for archived briefings
     Value: !Ref ReportsBucket
+  DashboardApiUrl:
+    Description: Function URL for the dashboard API
+    Value: !GetAtt DashboardApiFunctionUrl.FunctionUrl
+  WebBucketName:
+    Description: S3 bucket hosting the dashboard frontend
+    Value: !Ref WebBucket
+  WebsiteUrl:
+    Description: Public URL of the dashboard
+    Value: !GetAtt WebBucket.WebsiteURL

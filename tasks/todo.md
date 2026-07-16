@@ -93,8 +93,15 @@ aws ssm put-parameter --name /orbit/briefing-email --type String --value "you@ex
 ## Phase 1 — after blockers cleared
 
 - [x] Manual end-to-end Lambda invoke (`scripts/invoke-remote.ps1`) — verified 2026-07-16: gather (10 tasks, 116 repos) → reason → archive (`reports/2026-07-16.md` + context JSON in S3) → deliver (SES message id `0100019f6ccd3731-…`, `emailed: true`)
-- [ ] Add EventBridge Scheduler (6 AM `Africa/Accra`, SAM `ScheduleV2`) — **only after** verified manual run
-- [ ] Capture first unattended run: CloudWatch log timestamp + email screenshot (article evidence)
+- [ ] Add EventBridge Scheduler (6 AM `Africa/Accra`, SAM `ScheduleV2`) — **template updated
+  2026-07-16** (`orbit-daily-briefing`, `cron(0 6 * * ? *)`, tz `Africa/Accra`), but the deploy
+  **rolled back: `builderos-admin` lacks EventBridge Scheduler IAM permissions**
+  (`scheduler:GetSchedule` denied). **BLOCKED ON JOEL** — attach the policy in
+  `scripts/iam-orbit-scheduler-policy.json` to `builderos-admin` via the IAM console (same as
+  `orbit-ssm-ses` before), then re-run `sam deploy --stack-name orbit-ai --region us-east-1
+  --capabilities CAPABILITY_IAM --resolve-s3 --no-confirm-changeset`
+- [ ] Capture first unattended run — the remaining proof step: tomorrow's 6 AM run, CloudWatch
+  log timestamp + email screenshot (article evidence)
 
 ## Phase 2 (later)
 
@@ -131,3 +138,17 @@ recent Actions conclusions (`failingCi`), and `lastPushDate` from discovery. Rep
 run with concurrency 5; PR/Actions endpoint failures soft-fail. Fine-grained PAT needs
 Metadata + Contents + Issues + Pull requests + Actions (all Read). Prompt feeds these
 into the existing 5-section briefing. EventBridge still OFF.
+
+**2026-07-16 — EventBridge schedule added to template; deploy blocked on IAM.**
+`template.yaml` now defines a `ScheduleV2` event `orbit-daily-briefing` on the briefing
+Lambda: `cron(0 6 * * ? *)`, `ScheduleExpressionTimezone: Africa/Accra` (next fire:
+tomorrow 6:00 AM Accra). `sam validate --lint` and `sam build` pass. `sam deploy` created
+the changeset (schedule + its invoke role) but CloudFormation **rolled back**:
+`builderos-admin` is denied `scheduler:GetSchedule` (no EventBridge Scheduler permissions),
+and the user cannot self-grant (`iam:PutUserPolicy` also denied). Stack is back at its
+previous healthy state; the deployed Lambda/table/bucket are untouched. Unblock: Joel
+attaches `scripts/iam-orbit-scheduler-policy.json` (scoped to `orbit-*` schedules +
+PassRole to scheduler.amazonaws.com) in the IAM console, then redeploy and verify with
+`aws scheduler get-schedule --name orbit-daily-briefing`. After that, the only remaining
+proof step is capturing tomorrow's 6 AM unattended run (CloudWatch log timestamp + email
+screenshot for the article).
