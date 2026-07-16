@@ -29,10 +29,29 @@ async function resolve(envKey, paramName, { decrypt = false } = {}) {
   return readParam(paramName, { decrypt });
 }
 
+function parseGoogleOauth(value) {
+  if (!value) return null;
+  try {
+    const oauth = typeof value === "string" ? JSON.parse(value) : value;
+    if (!oauth.clientId || !oauth.clientSecret || !oauth.refreshToken) return null;
+    return oauth;
+  } catch {
+    console.warn("Google OAuth configuration is invalid JSON; Google sources disabled.");
+    return null;
+  }
+}
+
 export async function getConfig() {
   if (cachedConfig) return cachedConfig;
 
-  const [openaiApiKey, githubToken, githubRepos, githubUser, briefingEmail] =
+  const [
+    openaiApiKey,
+    githubToken,
+    githubRepos,
+    githubUser,
+    briefingEmail,
+    googleOauthParam,
+  ] =
     await Promise.all([
       resolve("OPENAI_API_KEY", "openai-api-key", { decrypt: true }),
       resolve("GITHUB_TOKEN", "github-token", { decrypt: true }),
@@ -41,7 +60,24 @@ export async function getConfig() {
       // Optional; usually unnecessary — GET /user/repos uses the token's identity.
       resolve("GITHUB_USER", "github-user"),
       resolve("BRIEFING_EMAIL", "briefing-email"),
+      process.env.GOOGLE_OAUTH_JSON
+        ? Promise.resolve(process.env.GOOGLE_OAUTH_JSON)
+        : readParam("google-oauth", { decrypt: true }),
     ]);
+
+  const googleOauth =
+    parseGoogleOauth(googleOauthParam) ??
+    parseGoogleOauth(
+      process.env.GOOGLE_CLIENT_ID &&
+        process.env.GOOGLE_CLIENT_SECRET &&
+        process.env.GOOGLE_REFRESH_TOKEN
+        ? {
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+          }
+        : null
+    );
 
   cachedConfig = {
     openaiApiKey,
@@ -52,6 +88,7 @@ export async function getConfig() {
       .filter(Boolean),
     githubUser: githubUser || null,
     briefingEmail,
+    googleOauth,
     tasksTable: process.env.TASKS_TABLE ?? "orbit-tasks",
     reportsBucket: process.env.REPORTS_BUCKET ?? null,
   };

@@ -14,6 +14,12 @@ recentWorkflowRuns (Actions conclusions), and failingCi. Use those signals when 
 failing/cancelled CI, aging open PRs, or stale repos belong in Top 3 Priorities or Stale Alerts \
 when they matter; do not invent a sixth section for them.
 
+Calendar entries (when present) cover today through the next seven days. Treat meetings and \
+all-day events as real time constraints: reflect urgent preparation or near-term collisions in \
+Focus, Top 3 Priorities, or Deadline Radar without creating a calendar section. Gmail entries \
+(when present) are bounded to unread/important messages. Surface only messages that imply a \
+specific reply, decision, deadline, or blocker; do not turn every unread email into a priority.
+
 Rules:
 - Be direct, specific, and brief. No filler, no motivational fluff.
 - Never invent tasks, dates, repos, or facts not present in the input.
@@ -44,10 +50,13 @@ Bulleted list of repos or tasks untouched for more than 14 days. Write "Nothing 
 Up to 2 tasks with effort "quick" worth knocking out today. Write "No quick wins queued." if none.`;
 
 export function buildUserPrompt(context) {
+  const availableContext = Object.fromEntries(
+    Object.entries(context).filter(([, value]) => value !== null)
+  );
   return [
     "Here is today's snapshot of Joel's world as JSON. Produce the briefing.",
     "```json",
-    JSON.stringify(context, null, 2),
+    JSON.stringify(availableContext, null, 2),
     "```",
   ].join("\n");
 }

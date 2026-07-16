@@ -126,10 +126,69 @@ with `scheduler:CreateSchedule/GetSchedule/UpdateSchedule/DeleteSchedule` (resou
 `arn:aws:scheduler:*:*:schedule/default/orbit-*`) plus `iam:CreateRole/PassRole` for
 the scheduler execution role, then uncomment and redeploy.
 
-## Phase 2 (later)
+## Phase 2 — Google Calendar + Gmail
 
-- [ ] Google Calendar source (OAuth)
-- [ ] Gmail source (OAuth)
+- [x] Add shared Google OAuth refresh-token client with one cold-start token cache
+- [x] Replace Calendar stub — primary calendar, today + next 7 days, Africa/Accra,
+      timed/all-day event mapping, nullable soft-fail
+- [x] Replace Gmail stub — max 15 unread important/inbox messages, metadata-only detail
+      fetches, nullable soft-fail
+- [x] Feed Calendar/Gmail into the existing five-section OpenAI prompt without changing
+      the response contract
+- [x] Enrich archived-context dashboard API signals with `calendarEvents` and
+      `emailHighlights` (no new UI chrome)
+- [x] Add one-time `scripts/google-oauth-setup.mjs`; it opens consent and writes the
+      refresh token directly to SSM without printing it
+- [ ] Deploy Phase 2 SAM changes and verify the no-credentials soft-fail path
+- [ ] Complete Google OAuth setup below, then invoke a real Google-backed briefing
+
+### BLOCKED ON JOEL — one-time Google Cloud OAuth setup
+
+1. Open https://console.cloud.google.com/ and create or select a project for Orbit.
+2. Open **APIs & Services → Library**. Enable both **Google Calendar API** and
+   **Gmail API**.
+3. Open **Google Auth Platform** (or **APIs & Services → OAuth consent screen**):
+   - Choose **External** audience.
+   - Complete the required app/contact fields.
+   - Keep publishing status **Testing**.
+   - Add `anarbajoel@gmail.com` under **Audience → Test users**.
+   - Add these read-only scopes under **Data Access**:
+     - `https://www.googleapis.com/auth/calendar.readonly`
+     - `https://www.googleapis.com/auth/gmail.readonly`
+4. Open **Clients → Create client → Desktop app**. Download or copy its client ID and
+   client secret. Save them only in the gitignored local `.env`:
+
+   ```powershell
+   GOOGLE_CLIENT_ID=REPLACE_WITH_DESKTOP_CLIENT_ID
+   GOOGLE_CLIENT_SECRET=REPLACE_WITH_DESKTOP_CLIENT_SECRET
+   ```
+
+5. From `c:\dev\Projects\orbit ai`, with the AWS CLI signed in as the same account that
+   owns stack `orbit-ai`, run:
+
+   ```powershell
+   npm install
+   npm run setup:google
+   ```
+
+   Approve both read-only scopes in the browser. The script receives the loopback
+   callback and writes one SecureString, `/orbit/google-oauth`, in `us-east-1`.
+   It does not print the client secret or refresh token.
+
+6. Confirm only that the parameter exists (do not decrypt or print it):
+
+   ```powershell
+   aws ssm get-parameter --name /orbit/google-oauth --region us-east-1 --query "Parameter.Name" --output text
+   ```
+
+7. Invoke Orbit and confirm the logs show non-zero Google signal counts:
+
+   ```powershell
+   .\scripts\invoke-remote.ps1
+   ```
+
+   Expected gather log shape: `calendar=N events, gmail=N messages`. The archived
+   `reports/YYYY-MM-DD.context.json` and dashboard report API then carry those signals.
 
 ## Review log
 

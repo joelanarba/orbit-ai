@@ -217,7 +217,7 @@ async function readObject(key) {
   };
 }
 
-/** Cheap GitHub/task signal summary from the run's archived context JSON. */
+/** Cheap source summary from the run's archived context JSON. */
 function summarizeContext(context) {
   const repos = Array.isArray(context.github) ? context.github : [];
   return {
@@ -230,6 +230,8 @@ function summarizeContext(context) {
     openPullRequests: repos
       .filter((r) => (r.openPullRequestCount ?? 0) > 0)
       .map((r) => ({ repo: r.repo, count: r.openPullRequestCount })),
+    calendarEvents: Array.isArray(context.calendar) ? context.calendar : [],
+    emailHighlights: Array.isArray(context.gmail) ? context.gmail : [],
   };
 }
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getCalendarEvents } from "../src/sources/calendar.mjs";
 import { getEmailHighlights } from "../src/sources/gmail.mjs";
+import { buildUserPrompt } from "../src/reasoning/prompt.mjs";
 
 const oauth = {
   clientId: "client-id",
@@ -121,4 +122,22 @@ test("Google API failures soft-fail both optional sources", async () => {
 
   assert.equal(await getCalendarEvents({ oauth, fetchImpl }), null);
   assert.equal(await getEmailHighlights({ oauth, fetchImpl }), null);
+});
+
+test("briefing prompt includes available Google signals and omits null ones", () => {
+  const withGoogle = buildUserPrompt({
+    tasks: [],
+    calendar: [{ title: "Project review" }],
+    gmail: [{ subject: "Proposal review" }],
+  });
+  assert.match(withGoogle, /Project review/);
+  assert.match(withGoogle, /Proposal review/);
+
+  const withoutGoogle = buildUserPrompt({
+    tasks: [],
+    calendar: null,
+    gmail: null,
+  });
+  assert.doesNotMatch(withoutGoogle, /"calendar"/);
+  assert.doesNotMatch(withoutGoogle, /"gmail"/);
 });

@@ -5,7 +5,9 @@
   "type": "module",
   "description": "Orbit AI — always-on personal agent: scheduled briefings from tasks, GitHub, calendar, and email",
   "scripts": {
+    "test": "node --test tests/*.test.mjs",
     "test:openai": "node scripts/test-openai.mjs",
+    "setup:google": "node scripts/google-oauth-setup.mjs",
     "seed": "node scripts/seed-tasks.mjs"
   },
   "dependencies": {

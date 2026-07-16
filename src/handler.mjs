@@ -38,8 +38,8 @@ export async function handler(event) {
         console.error("GitHub source failed, continuing without it:", err);
         return null;
       }),
-      getCalendarEvents(),
-      getEmailHighlights(),
+      getCalendarEvents({ oauth: config.googleOauth }),
+      getEmailHighlights({ oauth: config.googleOauth }),
       getPreviousBriefing({ bucket: config.reportsBucket, date }).catch(
         (err) => {
           console.error("Previous-briefing read failed, continuing:", err);
@@ -60,6 +60,8 @@ export async function handler(event) {
   console.log(
     `Gathered context: ${tasks.length} tasks, github=${
       github ? github.length + " repos" : "off"
+    }, calendar=${calendar ? calendar.length + " events" : "off"}, gmail=${
+      gmail ? gmail.length + " messages" : "off"
     }, previousBriefing=${previousBriefing ? previousBriefing.date : "none"}`
   );
 
