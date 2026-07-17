@@ -144,50 +144,16 @@ the scheduler execution role, then uncomment and redeploy.
       Cloud Resource Manager, Google Calendar, and Gmail APIs
 - [x] Desktop OAuth client created; `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
       present in local gitignored `.env` (lengths only verified; never printed)
-- [ ] Browser consent + SSM write — run `npm run setup:google`, approve as
+- [x] Browser consent + SSM write — run `npm run setup:google`, approve as
       `anarbajoel@gmail.com`, confirm `/orbit/google-oauth` SecureString exists
-- [ ] Real Google-backed Lambda invoke — gather log `calendar=N events, gmail=N
+- [x] Real Google-backed Lambda invoke — gather log `calendar=N events, gmail=N
       messages` (non-null), email sent, S3 context JSON has calendar/gmail arrays
 
-### BLOCKED ON JOEL — browser OAuth consent (console step done)
+### Phase 2 Google OAuth — CLEARED 2026-07-17
 
-Google Auth Platform + Desktop client are done (project `orbit-ai-anarbajoel`).
-Local `.env` has both Google client keys (verified by key presence / non-empty
-length only). SSM `/orbit/google-oauth` is **not** written yet — consent did not
-complete when setup was launched 2026-07-17 (~00:15 UTC); the hung process was
-cleared so a fresh run is safe.
-
-**Joel — finish in one shot:**
-
-```powershell
-cd "c:\dev\Projects\orbit ai"
-npm run setup:google
-```
-
-1. When the browser opens, sign in as **`anarbajoel@gmail.com`** (must be a Test
-   user) and approve both read-only scopes (Calendar + Gmail).
-2. Leave the terminal running until you see:
-   `Google OAuth connected and stored securely in /orbit/google-oauth (us-east-1).`
-3. Confirm the param exists (name only — do not decrypt):
-
-   ```powershell
-   aws ssm get-parameter --name /orbit/google-oauth --region us-east-1 --query "{Name:Parameter.Name,Type:Parameter.Type,Version:Parameter.Version}" --output json
-   ```
-
-4. Invoke and check gather counts (no private content in screenshots needed beyond counts):
-
-   ```powershell
-   .\scripts\invoke-remote.ps1
-   ```
-
-   Expected CloudWatch gather shape: `calendar=N events, gmail=N messages` with
-   non-null N. Email should send; S3 `reports/YYYY-MM-DD.context.json` should have
-   `calendar` / `gmail` arrays (check types/counts only).
-
-If Google shows an error instead of consent: note the exact message (redirect URI,
-access blocked, app not configured) and fix in Auth Platform console — Desktop
-clients use loopback `http://127.0.0.1:<ephemeral>/oauth2callback` (port chosen at
-runtime by the setup script).
+Joel completed `npm run setup:google` consent. SSM `/orbit/google-oauth` exists
+(SecureString v1, LastModified ~00:39 UTC). Manual Lambda invoke confirmed
+live Calendar + Gmail (see review log). No remaining Phase 2 blockers.
 
 ## Review log
 
@@ -263,3 +229,13 @@ process was killed. SSM `/orbit/google-oauth` still ParameterNotFound. Schedule
 ~00:15 UTC check is before 6 AM Accra, so today's unattended run has not fired yet; left
 enabled. Unit tests 6/6 pass. Remaining: Joel completes browser consent, then SSM verify
 + remote Lambda invoke for non-null calendar/gmail counts.
+
+**2026-07-17 — Phase 2 Google-backed run verified.** Joel completed consent; SSM
+`/orbit/google-oauth` present (SecureString, Version 1, LastModified 2026-07-17T00:39:06Z —
+metadata only, never decrypted). Manual `invoke-remote.ps1` → Lambda StatusCode 200,
+`emailed: true`, SES message id `0100019f6d854ed8-…`. CloudWatch gather:
+`calendar=0 events, gmail=15 messages` (arrays, not `off`). S3
+`reports/2026-07-17.md` + `.context.json` archived; context types: calendar array
+len 0, gmail array len 15. Schedule `orbit-daily-briefing` still ENABLED. Unit tests
+6/6 pass. Phase 2 complete; remaining overall: unattended 6 AM Accra proof + frontend
+deploy items.
