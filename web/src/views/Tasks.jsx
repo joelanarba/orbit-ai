@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, PencilSimple, TrashSimple } from "@phosphor-icons/react";
 import { api } from "../api.js";
+import { demoTasks } from "../demoData.js";
 
 const GROUPS = [
   { status: "in_progress", label: "In motion" },
@@ -120,7 +121,7 @@ function TaskForm({ initial, onSave, onCancel, saving, error }) {
   );
 }
 
-function TaskRow({ task, onToggle, onEdit, onDelete }) {
+function TaskRow({ task, onToggle, onEdit, onDelete, readOnly = false }) {
   const done = task.status === "done";
   return (
     <div className={`task-row${done ? " done" : ""}`}>
@@ -128,6 +129,8 @@ function TaskRow({ task, onToggle, onEdit, onDelete }) {
         className="task-check"
         role="checkbox"
         aria-checked={done}
+        aria-disabled={readOnly}
+        disabled={readOnly}
         aria-label={done ? `Reopen "${task.title}"` : `Complete "${task.title}"`}
         onClick={onToggle}
       >
@@ -147,14 +150,16 @@ function TaskRow({ task, onToggle, onEdit, onDelete }) {
           P{task.importance}
         </span>
       </div>
-      <div className="row-actions">
-        <button className="btn-quiet" aria-label={`Edit "${task.title}"`} onClick={onEdit}>
-          <PencilSimple size={15} />
-        </button>
-        <button className="btn-quiet" aria-label={`Delete "${task.title}"`} onClick={onDelete}>
-          <TrashSimple size={15} />
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="row-actions">
+          <button className="btn-quiet" aria-label={`Edit "${task.title}"`} onClick={onEdit}>
+            <PencilSimple size={15} />
+          </button>
+          <button className="btn-quiet" aria-label={`Delete "${task.title}"`} onClick={onDelete}>
+            <TrashSimple size={15} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -169,19 +174,20 @@ function TasksSkeleton() {
   );
 }
 
-export default function Tasks() {
-  const [tasks, setTasks] = useState(null);
+export default function Tasks({ demo = false }) {
+  const [tasks, setTasks] = useState(() => (demo ? demoTasks : null));
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null); // task id being edited
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
 
   useEffect(() => {
+    if (demo) return;
     api
       .tasks()
       .then(({ tasks }) => setTasks(tasks))
       .catch((err) => setError(err.message));
-  }, []);
+  }, [demo]);
 
   const grouped = useMemo(() => {
     if (!tasks) return null;
@@ -303,6 +309,7 @@ export default function Tasks() {
                     <TaskRow
                       key={task.id}
                       task={task}
+                      readOnly={demo}
                       onToggle={() => toggle(task)}
                       onEdit={() => {
                         setEditing(task.id);
@@ -319,7 +326,13 @@ export default function Tasks() {
       </div>
 
       <aside className="rail">
-        {editing === null && (
+        {demo ? (
+          <div className="demo-note">
+            <strong>Read-only sample</strong>
+            Task changes are unavailable in demo mode. Enter the private access token to
+            work with the live task ledger.
+          </div>
+        ) : editing === null && (
           <TaskForm saving={saving} error={formError} onSave={create} />
         )}
       </aside>

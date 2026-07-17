@@ -110,12 +110,16 @@ aws ssm put-parameter --name /orbit/briefing-email --type String --value "you@ex
       (generated 2026-07-16, never printed; retrieve with
       `aws ssm get-parameter --name /orbit/dashboard-token --with-decryption`)
 - [x] `WebBucket` S3 static website hosting + public-read policy in template
-- [ ] `sam deploy` with API + web bucket — verify Function URL responds
+- [x] `sam deploy` with API + web bucket — Function URL verified live
 - [x] `web/` Vite + React app: token gate, Briefing view (markdown report + repo
       signals + history), Tasks view (grouped list, add/edit/complete/delete),
       run status + Run now in the top bar
-- [ ] `npm run build` + sync `web/dist` to WebBucket — verify site serves
-- [ ] Exercise deployed API with real calls (tasks list, latest report, status)
+- [x] `npm run build` + sync `web/dist` to WebBucket — public site verified live
+- [x] Exercise deployed API with real calls (tasks list, latest report, status)
+- [x] Add review-friendly public demo mode — static synthetic briefing, tasks, run
+      status, and GitHub/Calendar/Gmail signals; no token or live API calls
+- [x] Keep demo mode read-only — CRUD and Run now disabled; private mode remains
+      token-protected with full live controls
 
 ### Blocker discovered 2026-07-16 (needs Joel)
 
@@ -239,3 +243,13 @@ metadata only, never decrypted). Manual `invoke-remote.ps1` → Lambda StatusCod
 len 0, gmail array len 15. Schedule `orbit-daily-briefing` still ENABLED. Unit tests
 6/6 pass. Phase 2 complete; remaining overall: unattended 6 AM Accra proof + frontend
 deploy items.
+
+**2026-07-17 — Public review demo deployed.** The S3 website now opens directly into a
+clearly labeled, read-only demo backed only by bundled synthetic data: a five-section
+briefing, nine tasks, run status, and fake GitHub/Calendar/Gmail signals. Reviewers can
+open the private token form from the banner; `?demo=1` forces demo mode. Production API
+configuration is bundled separately from the sample data, and every live route still
+returns 401 without `x-orbit-token` (`/status`, `/tasks`, `/reports`, `/run`). Authorized
+verification passed for status, task list, create, update, delete, and Run now; the
+temporary verification task was deleted. Frontend build passed, all 7 tests passed, and
+`web/dist` was synced to `orbit-ai-webbucket-usf0sxolvb5r`.

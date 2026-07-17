@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { api } from "../api.js";
+import { demoReport, demoReports } from "../demoData.js";
 
 function prettyDate(iso) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -19,6 +20,26 @@ function ReportSkeleton() {
       ))}
     </div>
   );
+}
+
+function shortTime(iso) {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Accra",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+function runStamp(iso) {
+  if (!iso) return "not yet";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Accra",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
 }
 
 function Signals({ signals }) {
@@ -64,18 +85,45 @@ function Signals({ signals }) {
           ))}
         </ul>
       )}
+      {signals.calendarEvents?.length > 0 && (
+        <div className="signal-block">
+          <h3>Calendar</h3>
+          <ul className="signal-list">
+            {signals.calendarEvents.slice(0, 4).map((event) => (
+              <li key={`${event.title}-${event.start}`}>
+                <span>{event.title}</span>
+                <span className="mono">{event.allDay ? "all day" : shortTime(event.start)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {signals.emailHighlights?.length > 0 && (
+        <div className="signal-block">
+          <h3>Inbox</h3>
+          <ul className="signal-list signal-list-stacked">
+            {signals.emailHighlights.slice(0, 4).map((email) => (
+              <li key={email.threadId ?? `${email.subject}-${email.date}`}>
+                <span>{email.subject}</span>
+                <span>{email.from.replace(/\s*<[^>]+>/, "")}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
 
-export default function Briefing() {
-  const [reports, setReports] = useState(null);
-  const [selected, setSelected] = useState(null);
-  const [report, setReport] = useState(null);
+export default function Briefing({ demo = false, status = null }) {
+  const [reports, setReports] = useState(() => (demo ? demoReports : null));
+  const [selected, setSelected] = useState(() => (demo ? demoReport.date : null));
+  const [report, setReport] = useState(() => (demo ? demoReport : null));
   const [loadingReport, setLoadingReport] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (demo) return;
     api
       .reports()
       .then(({ reports }) => {
@@ -83,9 +131,13 @@ export default function Briefing() {
         if (reports.length > 0) setSelected(reports[0].date);
       })
       .catch((err) => setError(err.message));
-  }, []);
+  }, [demo]);
 
   useEffect(() => {
+    if (demo) {
+      setReport(demoReport);
+      return;
+    }
     if (!selected) return;
     setLoadingReport(true);
     api
@@ -93,7 +145,7 @@ export default function Briefing() {
       .then(setReport)
       .catch((err) => setError(err.message))
       .finally(() => setLoadingReport(false));
-  }, [selected]);
+  }, [demo, selected]);
 
   if (error) {
     return (
@@ -144,6 +196,25 @@ export default function Briefing() {
 
       <aside className="rail">
         <Signals signals={report?.signals} />
+        <section>
+          <h3>Run status</h3>
+          <div className="signal-rows">
+            <div className="signal-row">
+              <span>Last briefing</span>
+              <span className="value mono">{runStamp(status?.lastRun?.completedAt)}</span>
+            </div>
+            <div className="signal-row">
+              <span>Next wake-up</span>
+              <span className="value mono">
+                {status?.nextRun ? runStamp(status.nextRun) : "loading"}
+              </span>
+            </div>
+            <div className="signal-row">
+              <span>Schedule</span>
+              <span className="value mono">06:00 Accra</span>
+            </div>
+          </div>
+        </section>
         <section>
           <h3>Past briefings</h3>
           <div className="history">

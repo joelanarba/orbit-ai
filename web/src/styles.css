@@ -86,6 +86,32 @@ a:focus-visible {
   padding: 0 24px 80px;
 }
 
+.demo-banner {
+  min-height: 38px;
+  margin: 0 -24px;
+  padding: 8px 24px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: var(--accent-dim);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  font-size: 12.5px;
+}
+
+.demo-banner strong {
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.demo-link {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
 .topbar {
   position: sticky;
   top: 0;
@@ -361,6 +387,21 @@ a:focus-visible {
   gap: 10px;
 }
 
+.signal-block {
+  margin-top: 22px;
+}
+
+.signal-list-stacked li {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0;
+  padding: 5px 0;
+}
+
+.signal-list-stacked li > span:last-child {
+  color: var(--text-faint);
+}
+
 .history {
   display: flex;
   flex-direction: column;
@@ -451,6 +492,15 @@ a:focus-visible {
 
 .task-check:hover {
   border-color: var(--accent);
+}
+
+.task-check:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.task-check:disabled:hover {
+  border-color: var(--text-faint);
 }
 
 .task-check[aria-checked="true"] {
@@ -565,6 +615,21 @@ a:focus-visible {
   padding: 12px 0 4px;
 }
 
+.demo-note {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 18px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.demo-note strong {
+  display: block;
+  color: var(--text);
+  margin-bottom: 5px;
+}
+
 /* ---------- states ---------- */
 
 .skeleton {
@@ -675,6 +740,10 @@ a:focus-visible {
   margin: 0 0 22px;
 }
 
+.gate-card > .btn + .btn {
+  margin-left: 8px;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 900px) {
@@ -694,5 +763,9 @@ a:focus-visible {
 
   .greeting {
     padding-top: 28px;
+  }
+
+  .demo-banner {
+    align-items: flex-start;
   }
 }

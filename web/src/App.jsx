@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Moon, PaperPlaneTilt } from "@phosphor-icons/react";
 import { api, getToken, setToken, clearToken, ApiError } from "./api.js";
+import { demoStatus } from "./demoData.js";
 import Briefing from "./views/Briefing.jsx";
 import Tasks from "./views/Tasks.jsx";
 
@@ -25,13 +26,13 @@ function OrbitMark({ size = 20 }) {
   );
 }
 
-function accraGreeting() {
+function accraGreeting(isDemo = false) {
   const hour = Number(
     new Intl.DateTimeFormat("en-GB", { timeZone: ACCRA, hour: "numeric", hour12: false }).format(new Date())
   );
-  if (hour < 12) return "Good morning, Joel.";
-  if (hour < 17) return "Good afternoon, Joel.";
-  return "Good evening, Joel.";
+  if (hour < 12) return isDemo ? "Good morning." : "Good morning, Joel.";
+  if (hour < 17) return isDemo ? "Good afternoon." : "Good afternoon, Joel.";
+  return isDemo ? "Good evening." : "Good evening, Joel.";
 }
 
 function longToday() {
@@ -51,7 +52,7 @@ function timeUntil(iso) {
   return h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
 }
 
-function TokenGate({ onUnlock }) {
+function TokenGate({ onUnlock, onDemo }) {
   const [value, setValue] = useState("");
   const [error, setError] = useState(null);
   const [checking, setChecking] = useState(false);
@@ -101,20 +102,30 @@ function TokenGate({ onUnlock }) {
         <button className="btn btn-primary" type="submit" disabled={checking || !value.trim()}>
           {checking ? "Checking" : "Unlock"}
         </button>
+        <button className="btn btn-ghost" type="button" onClick={onDemo}>
+          View public demo
+        </button>
       </form>
     </div>
   );
 }
 
 export default function App() {
-  const [unlocked, setUnlocked] = useState(() => Boolean(getToken()));
+  const [mode, setMode] = useState(() => {
+    const forceDemo = new URLSearchParams(window.location.search).get("demo") === "1";
+    return !forceDemo && getToken() ? "real" : "demo";
+  });
   const [view, setView] = useState("briefing");
-  const [status, setStatus] = useState(null);
+  const [status, setStatus] = useState(() => (mode === "demo" ? demoStatus : null));
   const [running, setRunning] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const pollRef = useRef(null);
 
   const loadStatus = useCallback(async () => {
+    if (mode === "demo") {
+      setStatus(demoStatus);
+      return demoStatus;
+    }
     try {
       const s = await api.status();
       setStatus(s);
@@ -122,19 +133,21 @@ export default function App() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         clearToken();
-        setUnlocked(false);
+        setMode("login");
       }
       return null;
     }
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
-    if (unlocked) loadStatus();
-  }, [unlocked, loadStatus]);
+    if (mode === "demo") setStatus(demoStatus);
+    if (mode === "real") loadStatus();
+  }, [mode, loadStatus]);
 
   useEffect(() => () => clearInterval(pollRef.current), []);
 
   async function runNow() {
+    if (mode !== "real") return;
     const before = status?.lastRun?.completedAt ?? null;
     setRunning(true);
     try {
@@ -157,10 +170,35 @@ export default function App() {
     }, 8000);
   }
 
-  if (!unlocked) return <TokenGate onUnlock={() => setUnlocked(true)} />;
+  if (mode === "login") {
+    return (
+      <TokenGate
+        onUnlock={() => {
+          window.history.replaceState({}, "", window.location.pathname);
+          setMode("real");
+        }}
+        onDemo={() => {
+          window.history.replaceState({}, "", `${window.location.pathname}?demo=1`);
+          setMode("demo");
+        }}
+      />
+    );
+  }
+
+  const isDemo = mode === "demo";
 
   return (
     <div className="shell">
+      {isDemo && (
+        <div className="demo-banner" role="status">
+          <span>
+            <strong>Demo data</strong> Synthetic examples only. Live actions are disabled.
+          </span>
+          <button className="demo-link" onClick={() => setMode("login")}>
+            Enter access token
+          </button>
+        </div>
+      )}
       <header className="topbar">
         <div className="topbar-inner">
           <div className="brand">
@@ -192,23 +230,28 @@ export default function App() {
                 </div>
               )
             )}
-            <button className="btn btn-primary" onClick={runNow} disabled={running}>
+            <button
+              className="btn btn-primary"
+              onClick={runNow}
+              disabled={running || isDemo}
+              title={isDemo ? "Run now is disabled for public demo data" : undefined}
+            >
               <PaperPlaneTilt size={15} weight="bold" />
-              Run now
+              {isDemo ? "Demo only" : "Run now"}
             </button>
           </div>
         </div>
       </header>
 
       <div className="greeting">
-        <h1>{view === "briefing" ? accraGreeting() : "The task ledger."}</h1>
+        <h1>{view === "briefing" ? accraGreeting(isDemo) : "The task ledger."}</h1>
         <span className="date mono">{longToday()}</span>
       </div>
 
       {view === "briefing" ? (
-        <Briefing key={`b${reloadKey}`} status={status} />
+        <Briefing key={`b${reloadKey}`} demo={isDemo} status={status} />
       ) : (
-        <Tasks key={`t${reloadKey}`} />
+        <Tasks key={`t${reloadKey}`} demo={isDemo} />
       )}
 
       <footer style={{ marginTop: 64, color: "var(--text-faint)", fontSize: 12.5 }}>
