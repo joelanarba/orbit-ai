@@ -100,6 +100,11 @@ function waitForAuthorizationCode() {
       });
       console.log("Opening Google consent in your browser...");
       openBrowser(authorizationUrl.toString());
+      console.log(
+        "\nIf your browser did not open, paste this URL into a browser signed in as anarbajoel@gmail.com:\n" +
+          authorizationUrl.toString() +
+          "\n"
+      );
     });
 
     server.setTimeout(5 * 60_000, () => {
