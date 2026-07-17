@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Moon, PaperPlaneTilt } from "@phosphor-icons/react";
+import { PaperPlaneTilt } from "@phosphor-icons/react";
 import { api, getToken, setToken, clearToken, ApiError } from "./api.js";
 import { demoStatus } from "./demoData.js";
+import { resolveTheme, toggleTheme } from "./lib/theme.js";
 import Briefing from "./views/Briefing.jsx";
+import Showcase from "./views/Showcase.jsx";
 import Tasks from "./views/Tasks.jsx";
 
 const ACCRA = "Africa/Accra";
 
 function OrbitMark({ size = 20 }) {
-  // Simple geometric mark: a planet with one orbit ring.
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <circle cx="10" cy="10" r="3.4" fill="currentColor" />
@@ -26,15 +27,6 @@ function OrbitMark({ size = 20 }) {
   );
 }
 
-function accraGreeting(isDemo = false) {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-GB", { timeZone: ACCRA, hour: "numeric", hour12: false }).format(new Date())
-  );
-  if (hour < 12) return isDemo ? "Good morning." : "Good morning, Joel.";
-  if (hour < 17) return isDemo ? "Good afternoon." : "Good afternoon, Joel.";
-  return isDemo ? "Good evening." : "Good evening, Joel.";
-}
-
 function longToday() {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: ACCRA,
@@ -44,15 +36,14 @@ function longToday() {
   }).format(new Date());
 }
 
-function timeUntil(iso) {
-  const ms = new Date(iso) - new Date();
-  if (ms <= 0) return "shortly";
-  const h = Math.floor(ms / 3_600_000);
-  const m = Math.round((ms % 3_600_000) / 60_000);
-  return h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
+function initialMode() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("demo") === "1") return "demo";
+  if (getToken()) return "real";
+  return "showcase";
 }
 
-function TokenGate({ onUnlock, onDemo }) {
+function TokenGate({ onUnlock, onDemo, onBack }) {
   const [value, setValue] = useState("");
   const [error, setError] = useState(null);
   const [checking, setChecking] = useState(false);
@@ -84,7 +75,7 @@ function TokenGate({ onUnlock, onDemo }) {
         <div className="brand">
           <OrbitMark size={22} /> Orbit
         </div>
-        <h1>This desk is Joel's.</h1>
+        <h1>This desk is Joel&apos;s.</h1>
         <p>Paste the dashboard token to open it.</p>
         <div className="field">
           <label htmlFor="token">Dashboard token</label>
@@ -99,25 +90,29 @@ function TokenGate({ onUnlock, onDemo }) {
           />
         </div>
         {error && <p className="form-error">{error}</p>}
-        <button className="btn btn-primary" type="submit" disabled={checking || !value.trim()}>
-          {checking ? "Checking" : "Unlock"}
-        </button>
-        <button className="btn btn-ghost" type="button" onClick={onDemo}>
-          View public demo
-        </button>
+        <div className="gate-actions">
+          <button className="btn btn-primary" type="submit" disabled={checking || !value.trim()}>
+            {checking ? "Checking" : "Unlock"}
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={onDemo}>
+            View public demo
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={onBack}>
+            Back to showcase
+          </button>
+        </div>
       </form>
     </div>
   );
 }
 
 export default function App() {
-  const [mode, setMode] = useState(() => {
-    const forceDemo = new URLSearchParams(window.location.search).get("demo") === "1";
-    return !forceDemo && getToken() ? "real" : "demo";
-  });
+  const [mode, setMode] = useState(initialMode);
   const [view, setView] = useState("briefing");
+  const [theme, setThemeState] = useState(resolveTheme);
   const [status, setStatus] = useState(() => (mode === "demo" ? demoStatus : null));
   const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const pollRef = useRef(null);
 
@@ -146,17 +141,39 @@ export default function App() {
 
   useEffect(() => () => clearInterval(pollRef.current), []);
 
+  function handleThemeToggle() {
+    setThemeState(toggleTheme(theme));
+  }
+
+  function openDemo() {
+    window.history.replaceState({}, "", `${window.location.pathname}?demo=1`);
+    setView("briefing");
+    setMode("demo");
+  }
+
+  function openShowcase() {
+    clearToken();
+    window.history.replaceState({}, "", window.location.pathname);
+    setMode("showcase");
+  }
+
+  function openLogin() {
+    window.history.replaceState({}, "", window.location.pathname);
+    setMode("login");
+  }
+
   async function runNow() {
     if (mode !== "real") return;
     const before = status?.lastRun?.completedAt ?? null;
     setRunning(true);
+    setRunError(null);
     try {
       await api.runNow();
-    } catch {
+    } catch (err) {
       setRunning(false);
+      setRunError(err instanceof Error ? err.message : "Run now failed.");
       return;
     }
-    // The briefing takes about a minute; poll until a newer report lands.
     const startedAt = Date.now();
     clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
@@ -170,6 +187,10 @@ export default function App() {
     }, 8000);
   }
 
+  if (mode === "showcase") {
+    return <Showcase onOpenDemo={openDemo} onPrivateAccess={openLogin} />;
+  }
+
   if (mode === "login") {
     return (
       <TokenGate
@@ -177,10 +198,8 @@ export default function App() {
           window.history.replaceState({}, "", window.location.pathname);
           setMode("real");
         }}
-        onDemo={() => {
-          window.history.replaceState({}, "", `${window.location.pathname}?demo=1`);
-          setMode("demo");
-        }}
+        onDemo={openDemo}
+        onBack={openShowcase}
       />
     );
   }
@@ -189,75 +208,95 @@ export default function App() {
 
   return (
     <div className="shell">
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
+
       {isDemo && (
         <div className="demo-banner" role="status">
           <span>
             <strong>Demo data</strong> Synthetic examples only. Live actions are disabled.
           </span>
-          <button className="demo-link" onClick={() => setMode("login")}>
-            Enter access token
-          </button>
+          <div className="demo-banner-actions">
+            <button className="demo-link" type="button" onClick={openShowcase}>
+              Back to showcase
+            </button>
+            <button className="demo-link" type="button" onClick={openLogin}>
+              Enter access token
+            </button>
+          </div>
         </div>
       )}
+
       <header className="topbar">
         <div className="topbar-inner">
           <div className="brand">
             <OrbitMark /> Orbit
           </div>
           <nav className="nav" aria-label="Views">
-            <button aria-current={view === "briefing"} onClick={() => setView("briefing")}>
+            <button type="button" aria-current={view === "briefing"} onClick={() => setView("briefing")}>
               Briefing
             </button>
-            <button aria-current={view === "tasks"} onClick={() => setView("tasks")}>
+            <button type="button" aria-current={view === "tasks"} onClick={() => setView("tasks")}>
               Tasks
             </button>
           </nav>
           <div className="topbar-right">
-            {running ? (
-              <span className="running">
-                <span className="pulse" aria-hidden="true" />
-                Briefing in progress
-              </span>
-            ) : (
-              status?.nextRun && (
-                <div className="runline">
-                  Next briefing{" "}
-                  <span className="mono" title={status.nextRun}>
-                    {timeUntil(status.nextRun)}
-                  </span>
-                  <br />
-                  6:00 wake-up, Accra time
-                </div>
-              )
-            )}
+            {running && <span className="running-label">Briefing in progress</span>}
             <button
+              type="button"
+              className="theme-toggle"
+              onClick={handleThemeToggle}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? "Light mode" : "Dark mode"}
+            </button>
+            <button
+              type="button"
               className="btn btn-primary"
               onClick={runNow}
               disabled={running || isDemo}
               title={isDemo ? "Run now is disabled for public demo data" : undefined}
             >
-              <PaperPlaneTilt size={15} weight="bold" />
-              {isDemo ? "Demo only" : "Run now"}
+              <PaperPlaneTilt size={16} weight="bold" aria-hidden="true" />
+              <span className="btn-label">{isDemo ? "Demo only" : "Run now"}</span>
             </button>
           </div>
         </div>
       </header>
 
-      <div className="greeting">
-        <h1>{view === "briefing" ? accraGreeting(isDemo) : "The task ledger."}</h1>
-        <span className="date mono">{longToday()}</span>
-      </div>
-
-      {view === "briefing" ? (
-        <Briefing key={`b${reloadKey}`} demo={isDemo} status={status} />
-      ) : (
-        <Tasks key={`t${reloadKey}`} demo={isDemo} />
+      {runError && (
+        <div className="error-note run-error" role="alert">
+          <span>Run now failed: {runError}</span>
+          <button className="btn btn-ghost" type="button" onClick={() => setRunError(null)}>
+            Dismiss
+          </button>
+        </div>
       )}
 
-      <footer style={{ marginTop: 64, color: "var(--text-faint)", fontSize: 12.5 }}>
-        <Moon size={13} style={{ verticalAlign: "-2px", marginRight: 6 }} />
-        Orbit runs unattended every morning: tasks from DynamoDB, signals from GitHub,
-        reasoning by GPT, delivery by SES.
+      <main id="main">
+        {view === "briefing" ? (
+          <Briefing
+            key={`b${reloadKey}`}
+            demo={isDemo}
+            isDemo={isDemo}
+            status={status}
+            running={running}
+          />
+        ) : (
+          <>
+            <header className="page-header">
+              <h1 className="display">What Orbit is ranking from</h1>
+              <span className="date mono">{longToday()}</span>
+            </header>
+            <Tasks key={`t${reloadKey}`} demo={isDemo} />
+          </>
+        )}
+      </main>
+
+      <footer className="site-footer">
+        Orbit runs unattended every morning at 6:00 Accra time — tasks from DynamoDB, signals from
+        GitHub, reasoning by GPT, delivery by SES.
       </footer>
     </div>
   );

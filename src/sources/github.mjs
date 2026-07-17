@@ -8,6 +8,11 @@ const REPO_CONCURRENCY = 5;
 const RECENT_COMMITS = 5;
 const RECENT_PRS = 5;
 const RECENT_RUNS = 5;
+// A repo that was pushed within this window but has now crossed the stale
+// threshold is "recently dropped" — actionable. Older than this is dormant,
+// not worth flooding the briefing with.
+const RECENTLY_DROPPED_MAX_DAYS = 45;
+const MAX_NOTABLE_REPOS = 8;
 
 async function gh(path, token) {
   const res = await fetch(`${API}${path}`, {
@@ -137,6 +142,60 @@ async function repoActivity(meta, token, now) {
   };
 }
 
+/**
+ * Score a repo by how much it needs attention today. Higher = more urgent.
+ * Returns 0 for repos that are not worth surfacing (dormant, quiet, healthy).
+ */
+export function repoAttentionScore(repo) {
+  if (!repo || repo.error) return 0;
+  let score = 0;
+  if (repo.failingCi) score += 1000;
+  if ((repo.openPullRequestCount ?? 0) > 0) score += 400 + repo.openPullRequestCount;
+  const days = repo.daysStale;
+  const recentlyDropped =
+    repo.isStale && days != null && days > STALE_AFTER_DAYS && days <= RECENTLY_DROPPED_MAX_DAYS;
+  if (recentlyDropped) score += Math.max(300 - days, 50);
+  if ((repo.openIssueCount ?? 0) > 0) score += Math.min(repo.openIssueCount, 10) * 5;
+  return score;
+}
+
+/** Keep only essential fields so the shortlist stays token-cheap for the model. */
+function compactRepo(repo) {
+  const [lastCommit] = repo.recentCommits ?? [];
+  return {
+    repo: repo.repo,
+    daysStale: repo.daysStale,
+    isStale: repo.isStale,
+    openIssueCount: repo.openIssueCount,
+    openPullRequestCount: repo.openPullRequestCount,
+    openPullRequests: repo.openPullRequests,
+    failingCi: repo.failingCi,
+    lastCommit: lastCommit ? { date: lastCommit.date, message: lastCommit.message } : null,
+  };
+}
+
+/**
+ * Reduce a full per-repo activity array to a compact, ranked shortlist plus
+ * headline counts, so the briefing surfaces what matters instead of every repo.
+ * @returns {{ scanned: number, staleCount: number, failingCount: number, repos: object[] }}
+ */
+export function summarizeGithubActivity(activity) {
+  const valid = activity.filter((r) => r && !r.error);
+  const ranked = valid
+    .map((repo) => ({ repo, score: repoAttentionScore(repo) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score || (a.repo.daysStale ?? 0) - (b.repo.daysStale ?? 0))
+    .slice(0, MAX_NOTABLE_REPOS)
+    .map(({ repo }) => compactRepo(repo));
+
+  return {
+    scanned: activity.length,
+    staleCount: valid.filter((r) => r.isStale).length,
+    failingCount: valid.filter((r) => r.failingCi).length,
+    repos: ranked,
+  };
+}
+
 /** Run async work over items with a fixed concurrency cap (Lambda-friendly). */
 async function mapSettled(items, concurrency, fn) {
   const results = new Array(items.length);
@@ -162,8 +221,9 @@ async function mapSettled(items, concurrency, fn) {
 }
 
 /**
- * @returns per-repo activity, or null when the source is not configured
- *          (missing token) so the prompt can ignore it.
+ * @returns a compact GitHub summary { scanned, staleCount, failingCount, repos }
+ *          where `repos` is a ranked shortlist of only the repos worth acting on,
+ *          or null when the source is not configured (missing token).
  *          If `repos` is non-empty, that list is used as an override;
  *          otherwise owned repos are discovered via the PAT.
  */
@@ -196,5 +256,5 @@ export async function getGithubActivity({ token, repos }) {
       });
     }
   }
-  return activity;
+  return summarizeGithubActivity(activity);
 }

@@ -8,6 +8,7 @@ import { getEmailHighlights } from "./sources/gmail.mjs";
 import { getPriorityBriefing } from "./reasoning/briefing.mjs";
 import { sendBriefing } from "./delivery/email.mjs";
 import { archiveReport, getPreviousBriefing } from "./delivery/archive.mjs";
+import { resolveTrigger } from "./lib/provenance.mjs";
 
 const TIMEZONE = "Africa/Accra";
 
@@ -22,7 +23,8 @@ function todayInAccra() {
 }
 
 export async function handler(event) {
-  console.log("Orbit run started", JSON.stringify(event ?? {}));
+  const trigger = resolveTrigger(event);
+  console.log("Orbit run started", JSON.stringify({ trigger, ...(event ?? {}) }));
   const config = await getConfig();
   const { date, dayOfWeek } = todayInAccra();
 
@@ -51,6 +53,7 @@ export async function handler(event) {
 
   const context = {
     today: { date, dayOfWeek, timezone: TIMEZONE },
+    trigger,
     tasks,
     github,
     calendar,
@@ -59,7 +62,9 @@ export async function handler(event) {
   };
   console.log(
     `Gathered context: ${tasks.length} tasks, github=${
-      github ? github.length + " repos" : "off"
+      github
+        ? `${github.scanned} repos scanned, ${github.repos.length} notable, ${github.staleCount} stale`
+        : "off"
     }, calendar=${calendar ? calendar.length + " events" : "off"}, gmail=${
       gmail ? gmail.length + " messages" : "off"
     }, previousBriefing=${previousBriefing ? previousBriefing.date : "none"}`

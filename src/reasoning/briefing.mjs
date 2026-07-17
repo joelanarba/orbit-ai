@@ -1,5 +1,4 @@
-// Sole OpenAI touchpoint. Swap the provider here without touching the rest
-// of the pipeline (see tasks/lessons.md — Bedrock quota lesson from BuilderOS).
+// Reasoning provider touchpoint.
 import OpenAI from "openai";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.mjs";
 

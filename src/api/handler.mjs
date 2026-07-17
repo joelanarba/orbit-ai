@@ -217,12 +217,26 @@ async function readObject(key) {
   };
 }
 
-/** Cheap source summary from the run's archived context JSON. */
+/** Cheap source summary from the run's archived context JSON.
+ *  Handles the compact GitHub shape { scanned, staleCount, repos } and the
+ *  legacy array shape stored by older runs. */
 function summarizeContext(context) {
-  const repos = Array.isArray(context.github) ? context.github : [];
+  const gh = context.github;
+  const isSummary = gh && !Array.isArray(gh) && Array.isArray(gh.repos);
+  const repos = isSummary ? gh.repos : Array.isArray(gh) ? gh : [];
+  const repoCount = isSummary ? gh.scanned ?? repos.length : repos.length;
+  const staleCount = isSummary
+    ? gh.staleCount ?? repos.filter((r) => r.isStale).length
+    : repos.filter((r) => r.isStale).length;
+  const trigger =
+    context.trigger === "scheduled" || context.trigger === "manual"
+      ? context.trigger
+      : "unknown";
   return {
+    trigger,
     taskCount: context.tasks?.length ?? 0,
-    repoCount: repos.length,
+    repoCount,
+    staleCount,
     staleRepos: repos
       .filter((r) => r.isStale)
       .map((r) => ({ repo: r.repo, daysStale: r.daysStale ?? null })),
@@ -248,9 +262,12 @@ async function getReport(date) {
   }
 
   let signals = null;
+  let trigger = "unknown";
   try {
     const context = await readObject(`${REPORT_PREFIX}${date}.context.json`);
-    signals = summarizeContext(JSON.parse(context.body));
+    const parsed = JSON.parse(context.body);
+    signals = summarizeContext(parsed);
+    trigger = signals.trigger;
   } catch {
     // Context JSON is best-effort; the markdown alone is still a valid report.
   }
@@ -259,6 +276,7 @@ async function getReport(date) {
     date,
     generatedAt: markdown.lastModified,
     markdown: markdown.body,
+    trigger,
     signals,
   });
 }
@@ -273,6 +291,17 @@ function nextScheduledRun(now = new Date()) {
   return next.toISOString();
 }
 
+async function readContextTrigger(date) {
+  try {
+    const context = await readObject(`${REPORT_PREFIX}${date}.context.json`);
+    const parsed = JSON.parse(context.body);
+    const t = parsed.trigger;
+    return t === "scheduled" || t === "manual" ? t : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 async function getStatus() {
   const listed = await s3.send(
     new ListObjectsV2Command({ Bucket: REPORTS_BUCKET, Prefix: REPORT_PREFIX })
@@ -281,11 +310,18 @@ async function getStatus() {
     .filter((o) => o.Key.endsWith(".md"))
     .sort((a, b) => b.Key.localeCompare(a.Key))[0];
 
+  let trigger = "unknown";
+  if (latest) {
+    const date = latest.Key.slice(REPORT_PREFIX.length, -3);
+    trigger = await readContextTrigger(date);
+  }
+
   return json(200, {
     lastRun: latest
       ? {
           date: latest.Key.slice(REPORT_PREFIX.length, -3),
           completedAt: latest.LastModified?.toISOString() ?? null,
+          trigger,
         }
       : null,
     nextRun: nextScheduledRun(),

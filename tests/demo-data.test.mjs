@@ -21,6 +21,8 @@ test("demo data is complete, synthetic, and review-ready", () => {
   assert.equal(demoReports[0].date, demoReport.date);
   assert.equal(demoStatus.schedule.timezone, "Africa/Accra");
   assert.match(demoStatus.schedule.cron, /0 6/);
+  assert.equal(demoStatus.lastRun.trigger, "scheduled");
+  assert.equal(demoReport.trigger, "scheduled");
 
   const { signals } = demoReport;
   assert.ok(signals.repoCount > 0);
@@ -29,5 +31,11 @@ test("demo data is complete, synthetic, and review-ready", () => {
   assert.ok(signals.emailHighlights.length > 0);
   assert.ok(
     signals.staleRepos.every(({ repo }) => repo.startsWith("northstar-studio/"))
+  );
+
+  // Public showcase/demo stay synthetic-only: no live API client coupling.
+  assert.doesNotMatch(
+    String(Object.keys({ demoReport, demoReports, demoStatus, demoTasks })),
+    /api/i
   );
 });

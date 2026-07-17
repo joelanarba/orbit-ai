@@ -78,6 +78,7 @@ Resources:
             Description: Fire the Orbit briefing every day at 6:00 AM Accra time
             ScheduleExpression: cron(0 6 * * ? *)
             ScheduleExpressionTimezone: Africa/Accra
+            Input: '{"trigger":"scheduled"}'
 
   DashboardApiFunction:
     Type: AWS::Serverless::Function

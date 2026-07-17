@@ -4,3 +4,6 @@ node_modules/
 out.json
 *.log
 web/dist/
+CLAUDE.md
+tasks/
+docs/

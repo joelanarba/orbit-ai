@@ -49,7 +49,7 @@ function TaskForm({ initial, onSave, onCancel, saving, error }) {
 
   return (
     <form
-      className="task-form"
+      className="task-form-panel"
       onSubmit={(e) => {
         e.preventDefault();
         onSave({
@@ -61,7 +61,7 @@ function TaskForm({ initial, onSave, onCancel, saving, error }) {
         });
       }}
     >
-      <h3>{initial ? "Edit task" : "New task"}</h3>
+      <h3>{initial ? "Edit task" : "Add a task"}</h3>
       <div className="field">
         <label htmlFor="tf-title">Title</label>
         <input
@@ -107,7 +107,7 @@ function TaskForm({ initial, onSave, onCancel, saving, error }) {
         </div>
       </div>
       {error && <p className="form-error">{error}</p>}
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="form-actions">
         <button className="btn btn-primary" type="submit" disabled={saving || !form.title.trim()}>
           {saving ? "Saving" : initial ? "Save changes" : "Add task"}
         </button>
@@ -153,10 +153,10 @@ function TaskRow({ task, onToggle, onEdit, onDelete, readOnly = false }) {
       {!readOnly && (
         <div className="row-actions">
           <button className="btn-quiet" aria-label={`Edit "${task.title}"`} onClick={onEdit}>
-            <PencilSimple size={15} />
+            <PencilSimple size={16} />
           </button>
           <button className="btn-quiet" aria-label={`Delete "${task.title}"`} onClick={onDelete}>
-            <TrashSimple size={15} />
+            <TrashSimple size={16} />
           </button>
         </div>
       )}
@@ -166,9 +166,10 @@ function TaskRow({ task, onToggle, onEdit, onDelete, readOnly = false }) {
 
 function TasksSkeleton() {
   return (
-    <div aria-hidden="true">
+    <div className="tasks-skeleton" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">Loading tasks</span>
       {[88, 72, 80, 64, 76, 58].map((w, i) => (
-        <div key={i} className="skeleton" style={{ height: 38, width: `${w}%`, marginBottom: 10 }} />
+        <div key={i} className={`skeleton skeleton-task skeleton-w-${w}`} aria-hidden="true" />
       ))}
     </div>
   );
@@ -177,7 +178,7 @@ function TasksSkeleton() {
 export default function Tasks({ demo = false }) {
   const [tasks, setTasks] = useState(() => (demo ? demoTasks : null));
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null); // task id being edited
+  const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -185,7 +186,7 @@ export default function Tasks({ demo = false }) {
     if (demo) return;
     api
       .tasks()
-      .then(({ tasks }) => setTasks(tasks))
+      .then(({ tasks: list }) => setTasks(list))
       .catch((err) => setError(err.message));
   }, [demo]);
 
@@ -193,7 +194,6 @@ export default function Tasks({ demo = false }) {
     if (!tasks) return null;
     const byStatus = Object.fromEntries(GROUPS.map((g) => [g.status, []]));
     for (const t of tasks) (byStatus[t.status] ?? byStatus.todo).push(t);
-    // Freshest completions first; everything else keeps deadline order.
     byStatus.done.sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
     return byStatus;
   }, [tasks]);
@@ -204,7 +204,7 @@ export default function Tasks({ demo = false }) {
 
   async function toggle(task) {
     const status = task.status === "done" ? "todo" : "done";
-    patchLocal({ ...task, status }); // optimistic
+    patchLocal({ ...task, status });
     try {
       const { task: fresh } = await api.updateTask(task.id, { status });
       patchLocal(fresh);
@@ -265,77 +265,79 @@ export default function Tasks({ demo = false }) {
   }
 
   return (
-    <div className="tasks-layout">
-      <div>
-        {error && (
-          <div className="error-note" role="alert">
-            <span>{error}</span>
-            <button className="btn btn-ghost" onClick={() => setError(null)}>
-              Dismiss
-            </button>
-          </div>
-        )}
-        {!grouped ? (
-          <TasksSkeleton />
-        ) : tasks.length === 0 ? (
-          <div className="empty">
-            <strong>The ledger is empty.</strong>
-            Add your first task on the right; tomorrow's 6:00 briefing will rank it.
-          </div>
-        ) : (
-          GROUPS.map(({ status, label }) => {
-            const items = grouped[status];
-            if (items.length === 0) return null;
-            return (
-              <section className="task-group" key={status}>
-                <h3>
-                  {label} <span className="count mono">{items.length}</span>
-                </h3>
-                {items.map((task) =>
-                  editing === task.id ? (
-                    <div className="inline-edit" key={task.id}>
-                      <TaskForm
-                        initial={task}
-                        saving={saving}
-                        error={formError}
-                        onSave={(input) => saveEdit(task.id, input)}
-                        onCancel={() => {
-                          setEditing(null);
-                          setFormError(null);
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      readOnly={demo}
-                      onToggle={() => toggle(task)}
-                      onEdit={() => {
-                        setEditing(task.id);
+    <div>
+      <p className="tasks-intro">
+        These are the commitments Orbit weighs each morning. Deadlines and importance shape what
+        lands in your briefing.
+      </p>
+
+      {demo ? (
+        <div className="demo-note">
+          <strong>Read-only sample</strong>
+          Task changes are unavailable in demo mode. Enter the private access token to work with
+          the live ledger.
+        </div>
+      ) : (
+        editing === null && <TaskForm saving={saving} error={formError} onSave={create} />
+      )}
+
+      {error && (
+        <div className="error-note" role="alert">
+          <span>{error}</span>
+          <button className="btn btn-ghost" onClick={() => setError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {!grouped ? (
+        <TasksSkeleton />
+      ) : tasks.length === 0 ? (
+        <div className="empty">
+          <strong>The ledger is empty.</strong>
+          Add your first task above. Tomorrow's 6 AM run will rank it.
+        </div>
+      ) : (
+        GROUPS.map(({ status, label }) => {
+          const items = grouped[status];
+          if (items.length === 0) return null;
+          return (
+            <section className="task-group" key={status}>
+              <h3>
+                {label} <span className="count mono">{items.length}</span>
+              </h3>
+              {items.map((task) =>
+                editing === task.id ? (
+                  <div className="inline-edit" key={task.id}>
+                    <TaskForm
+                      initial={task}
+                      saving={saving}
+                      error={formError}
+                      onSave={(input) => saveEdit(task.id, input)}
+                      onCancel={() => {
+                        setEditing(null);
                         setFormError(null);
                       }}
-                      onDelete={() => remove(task)}
                     />
-                  )
-                )}
-              </section>
-            );
-          })
-        )}
-      </div>
-
-      <aside className="rail">
-        {demo ? (
-          <div className="demo-note">
-            <strong>Read-only sample</strong>
-            Task changes are unavailable in demo mode. Enter the private access token to
-            work with the live task ledger.
-          </div>
-        ) : editing === null && (
-          <TaskForm saving={saving} error={formError} onSave={create} />
-        )}
-      </aside>
+                  </div>
+                ) : (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    readOnly={demo}
+                    onToggle={() => toggle(task)}
+                    onEdit={() => {
+                      setEditing(task.id);
+                      setFormError(null);
+                    }}
+                    onDelete={() => remove(task)}
+                  />
+                )
+              )}
+            </section>
+          );
+        })
+      )}
     </div>
   );
 }

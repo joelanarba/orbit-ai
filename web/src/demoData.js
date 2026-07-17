@@ -119,6 +119,7 @@ Protect 90 minutes for the **Atlas onboarding walkthrough**. Draft the complete 
 export const demoReport = {
   date: "2026-07-17",
   generatedAt: "2026-07-17T06:01:24.000Z",
+  trigger: "scheduled",
   markdown,
   signals: {
     taskCount: demoTasks.filter((task) => task.status !== "done").length,
@@ -175,6 +176,7 @@ export const demoStatus = {
   lastRun: {
     date: demoReport.date,
     completedAt: demoReport.generatedAt,
+    trigger: "scheduled",
   },
   nextRun: "2026-07-18T06:00:00.000Z",
   schedule: { cron: "0 6 * * ? *", timezone: "Africa/Accra" },
