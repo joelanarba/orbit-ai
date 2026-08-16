@@ -2,6 +2,7 @@
   "name": "orbit-ai",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Orbit AI — always-on personal agent: scheduled briefings from tasks, GitHub, calendar, and email",
   "scripts": {
